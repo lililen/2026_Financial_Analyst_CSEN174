@@ -19,6 +19,13 @@ function centsToDollars(cents: number) {
   return (cents / 100).toFixed(2);
 }
 
+const CATEGORY_COLORS = {
+  shopping: "#ef4444",      // red
+  entertainment: "#22c55e", // green
+  food: "#eab308",          // yellow
+  others: "#3b82f6",        // blue
+};
+
 export default function AnalysisPage() {
   const router = useRouter();
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -38,11 +45,10 @@ export default function AnalysisPage() {
   const chartData: ChartData<"pie"> | null = useMemo(() => {
     if (!totals) return null;
 
-    // If everything is 0, show a single slice so the chart renders nicely
     if (totals.shopping === 0 && totals.entertainment === 0 && totals.food === 0 && totals.others === 0) {
       return {
         labels: ["No spending found"],
-        datasets: [{ data: [1] }],
+        datasets: [{ data: [1], backgroundColor: ["#d1d5db"] }],
       };
     }
 
@@ -55,6 +61,12 @@ export default function AnalysisPage() {
             totals.entertainment / 100,
             totals.food / 100,
             totals.others / 100,
+          ],
+          backgroundColor: [
+            CATEGORY_COLORS.shopping,
+            CATEGORY_COLORS.entertainment,
+            CATEGORY_COLORS.food,
+            CATEGORY_COLORS.others,
           ],
         },
       ],
@@ -89,10 +101,10 @@ export default function AnalysisPage() {
       </div>
 
       <div style={{ marginTop: 16, lineHeight: 1.8 }}>
-        <div><strong>Shopping:</strong> ${centsToDollars(totals.shopping)}</div>
-        <div><strong>Entertainment:</strong> ${centsToDollars(totals.entertainment)}</div>
-        <div><strong>Food:</strong> ${centsToDollars(totals.food)}</div>
-        <div><strong>Others:</strong> ${centsToDollars(totals.others)}</div>
+        <div><span style={{ color: CATEGORY_COLORS.shopping }}>●</span> <strong>Shopping:</strong> ${centsToDollars(totals.shopping)}</div>
+        <div><span style={{ color: CATEGORY_COLORS.entertainment }}>●</span> <strong>Entertainment:</strong> ${centsToDollars(totals.entertainment)}</div>
+        <div><span style={{ color: CATEGORY_COLORS.food }}>●</span> <strong>Food:</strong> ${centsToDollars(totals.food)}</div>
+        <div><span style={{ color: CATEGORY_COLORS.others }}>●</span> <strong>Others:</strong> ${centsToDollars(totals.others)}</div>
       </div>
 
       <div style={{ marginTop: 30, maxWidth: 520 }}>
