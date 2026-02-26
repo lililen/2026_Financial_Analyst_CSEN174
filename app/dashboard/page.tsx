@@ -37,11 +37,9 @@ function categorizeLine(line: string): { category: keyof Totals; cents: number }
 }
 
 async function extractPdfTextLines(file: File): Promise<string[]> {
-  // ✅ Dynamically import pdfjs only on the client at runtime
   const pdfjs = await import("pdfjs-dist/build/pdf");
 
-  // ✅ Point workerSrc to the CDN — avoids the "no default export" bundler error
-  //    that occurs when importing the .mjs worker file directly in Next.js/Turbopack.
+
   (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
   const buf = await file.arrayBuffer();
