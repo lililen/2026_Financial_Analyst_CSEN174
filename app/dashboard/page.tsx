@@ -133,7 +133,6 @@ export default function Page() {
 
   return (
     <main style={{ padding: 40 }}>
-      <h1>Upload a PDF</h1>
 
       <input
         ref={fileInputRef}
