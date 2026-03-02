@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Totals = {
@@ -68,10 +68,15 @@ async function extractPdfTextLines(file: File): Promise<string[]> {
 
 export default function Page() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
 
   useEffect(() => {
     return () => {
@@ -130,7 +135,32 @@ export default function Page() {
     <main style={{ padding: 40 }}>
       <h1>Upload a PDF</h1>
 
-      <input type="file" accept="application/pdf" onChange={handleFile} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={handleFile}
+        style={{ display: "none" }}
+        aria-hidden
+      />
+
+      <button
+        type="button"
+        onClick={openFilePicker}
+        style={{
+          padding: "14px 24px",
+          fontSize: 16,
+          fontWeight: 600,
+          background: "#000",
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          cursor: "pointer",
+          marginTop: 16,
+        }}
+      >
+        Upload pdf
+      </button>
 
       {file && (
         <div style={{ marginTop: 20 }}>
