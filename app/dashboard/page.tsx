@@ -132,8 +132,16 @@ export default function Page() {
   }
 
   return (
-    <main style={{ padding: 40 }}>
-
+    <main
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#d4e9d7",
+        padding: 40,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -143,59 +151,104 @@ export default function Page() {
         aria-hidden
       />
 
-      <button
-        type="button"
-        onClick={openFilePicker}
+      <section
         style={{
-          padding: "14px 24px",
-          fontSize: 16,
-          fontWeight: 600,
-          background: "#000",
-          color: "#fff",
-          border: "none",
-          borderRadius: 8,
-          cursor: "pointer",
-          marginTop: 16,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          maxWidth: 560,
         }}
       >
-        Upload pdf
-      </button>
+        <h1
+          style={{
+            fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+            fontWeight: 700,
+            color: "#1a3d1e",
+            margin: 0,
+            marginBottom: 24,
+          }}
+        >
+          Financial Health Analysis tool
+        </h1>
+        <button
+          type="button"
+          onClick={openFilePicker}
+          style={{
+            padding: "14px 24px",
+            fontSize: 16,
+            fontWeight: 600,
+            background: "#1a3d1e",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Upload pdf
+        </button>
+        <p
+          style={{
+            marginTop: 20,
+            fontSize: 16,
+            color: "#2d5a32",
+            lineHeight: 1.5,
+          }}
+        >
+          Upload a bank statement here to view and evaluate your financial health
+        </p>
+      </section>
 
       {file && (
-        <div style={{ marginTop: 20 }}>
-          <p>
-            <strong>File:</strong> {file.name}
-          </p>
-          <p>
-            <strong>Size:</strong> {(file.size / 1024).toFixed(2)} KB
-          </p>
-        </div>
-      )}
-
-      {previewUrl && (
-        <iframe src={previewUrl} width="100%" height="600px" style={{ marginTop: 20 }} />
-      )}
-
-      {file && (
-        <div style={{ marginTop: 20 }}>
+        <section
+          style={{
+            width: "100%",
+            maxWidth: 720,
+            marginTop: 32,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ marginBottom: 16, textAlign: "center" }}>
+            <p style={{ margin: 0, color: "#1a3d1e" }}>
+              <strong>File:</strong> {file.name}
+            </p>
+            <p style={{ margin: "4px 0 0", color: "#1a3d1e" }}>
+              <strong>Size:</strong> {(file.size / 1024).toFixed(2)} KB
+            </p>
+          </div>
+          {previewUrl && (
+            <iframe
+              src={previewUrl}
+              width="100%"
+              height="400px"
+              style={{ marginBottom: 20, borderRadius: 8 }}
+              title="PDF preview"
+            />
+          )}
           <button
             onClick={handleAnalyze}
             disabled={analyzing}
             style={{
               padding: "12px 20px",
               fontSize: 16,
-              background: "#000",
+              background: "#1a3d1e",
               color: "#fff",
+              border: "none",
               borderRadius: 8,
               cursor: analyzing ? "not-allowed" : "pointer",
             }}
           >
             {analyzing ? "Analyzing..." : "Analyze"}
           </button>
-        </div>
+          {error && (
+            <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>
+          )}
+        </section>
       )}
-
-      {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
     </main>
   );
 }
