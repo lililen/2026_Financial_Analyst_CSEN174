@@ -1,4 +1,11 @@
 // lib/scoring/scoreTypes.ts
+export type Category =
+  | "rent"
+  | "groceries"
+  | "food"
+  | "shopping"
+  | "entertainment"
+  | "other";
 
 export type TxnType = "DEBIT" | "CREDIT";
 

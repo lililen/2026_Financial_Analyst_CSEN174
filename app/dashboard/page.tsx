@@ -8,10 +8,12 @@ import { calculateFinancialScore } from "@/lib/scoring/scoreCalculator";
 import type { Transaction } from "@/lib/scoring/scoreTypes";
 
 type Totals = {
-  shopping: number; // cents
-  entertainment: number;
+  rent: number; // cents
+  groceries: number;
   food: number;
-  others: number; // (we'll also map this to "other" for the score)
+  shopping: number;
+  entertainment: number;
+  other: number;
 };
 
 function moneyToCents(amountStr: string) {
@@ -21,9 +23,19 @@ function moneyToCents(amountStr: string) {
   return Math.round(n * 100);
 }
 
+/**
+ * Enforces ONLY 6 categories:
+ * rent, groceries, food, shopping, entertainment, other
+ *
+ * Notes:
+ * - groceries is for grocery stores / supermarket type items
+ * - food is for restaurants/dining/coffee/fast food
+ * - rent includes "rent", "lease", "apartment", "mortgage"
+ */
 function categorizeLine(line: string): { category: keyof Totals; cents: number } | null {
   const lower = line.toLowerCase();
 
+  // extract first money-looking value like 12.34 or 1,234.56 (optionally with $)
   const amtMatch = line.match(
     /\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})|[0-9]+(?:\.[0-9]{2}))/
   );
@@ -31,11 +43,63 @@ function categorizeLine(line: string): { category: keyof Totals; cents: number }
 
   const cents = moneyToCents(amtMatch[1]);
 
-  let category: keyof Totals = "others";
-  if (lower.includes("shopping")) category = "shopping";
-  else if (lower.includes("entertainment")) category = "entertainment";
-  else if (lower.includes("food")) category = "food";
-  else if (lower.includes("other")) category = "others";
+  // Default category
+  let category: keyof Totals = "other";
+
+  // Order matters: rent & groceries before general food/shopping keywords.
+  if (
+    lower.includes("rent") ||
+    lower.includes("lease") ||
+    lower.includes("apartment") ||
+    lower.includes("mortgage")
+  ) {
+    category = "rent";
+  } else if (
+    lower.includes("grocery") ||
+    lower.includes("groceries") ||
+    lower.includes("supermarket") ||
+    lower.includes("whole foods") ||
+    lower.includes("trader joe") ||
+    lower.includes("safeway") ||
+    lower.includes("kroger") ||
+    lower.includes("costco")
+  ) {
+    category = "groceries";
+  } else if (
+    lower.includes("restaurant") ||
+    lower.includes("dining") ||
+    lower.includes("cafe") ||
+    lower.includes("coffee") ||
+    lower.includes("doordash") ||
+    lower.includes("uber eats") ||
+    lower.includes("grubhub") ||
+    lower.includes("fast food") ||
+    lower.includes("food")
+  ) {
+    category = "food";
+  } else if (
+    lower.includes("shopping") ||
+    lower.includes("amazon") ||
+    lower.includes("target") ||
+    lower.includes("walmart") ||
+    lower.includes("store") ||
+    lower.includes("mall")
+  ) {
+    category = "shopping";
+  } else if (
+    lower.includes("entertainment") ||
+    lower.includes("movie") ||
+    lower.includes("cinema") ||
+    lower.includes("netflix") ||
+    lower.includes("spotify") ||
+    lower.includes("hulu") ||
+    lower.includes("game") ||
+    lower.includes("concert")
+  ) {
+    category = "entertainment";
+  } else if (lower.includes("other")) {
+    category = "other";
+  }
 
   return { category, cents };
 }
@@ -112,14 +176,21 @@ export default function Page() {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error("Analysis timed out (worker/text extraction stuck)")),
-          20000 // increased timeout a bit
+          20000
         )
       );
 
       const lines = await Promise.race([extractPdfTextLines(file), timeout]);
 
-      // Category totals for pie chart (in cents)
-      const totals: Totals = { shopping: 0, entertainment: 0, food: 0, others: 0 };
+      // Totals for pie chart (in cents)
+      const totals: Totals = {
+        rent: 0,
+        groceries: 0,
+        food: 0,
+        shopping: 0,
+        entertainment: 0,
+        other: 0,
+      };
 
       // Transactions for financial score (in dollars)
       const userId = "demo-user";
@@ -131,32 +202,25 @@ export default function Page() {
 
         totals[parsed.category] += parsed.cents;
 
-        // Map "others" -> "other" to match scoring benchmark keys
-        const scoreCategory =
-          parsed.category === "others" ? "other" : parsed.category;
-
         txns.push({
           userId,
           type: "DEBIT",
-          category: scoreCategory,      // food/shopping/entertainment/other
-          amount: parsed.cents / 100,   // dollars
+          category: parsed.category,   // rent/groceries/food/shopping/entertainment/other
+          amount: parsed.cents / 100,  // dollars
           description: line.slice(0, 80),
         });
       }
 
-      // Store totals for analysis pie chart page
       sessionStorage.setItem("categoryTotals", JSON.stringify(totals));
 
-      // Compute and store financial score result
       const scoreResult = calculateFinancialScore(txns, DEFAULT_BENCHMARK, {
-        penaltyFactor: 80, // less punishing than 200
+        penaltyFactor: 80,
         minScore: 0,
         maxScore: 100,
       });
 
       sessionStorage.setItem("financialScoreResult", JSON.stringify(scoreResult));
 
-      // Navigate to results page
       router.push("/analysis");
     } catch (e: any) {
       setError(e?.message ?? "Failed to analyze PDF.");
@@ -207,6 +271,7 @@ export default function Page() {
         >
           Financial Health Analysis tool
         </h1>
+
         <button
           type="button"
           onClick={openFilePicker}
@@ -221,8 +286,9 @@ export default function Page() {
             cursor: "pointer",
           }}
         >
-          Upload pdf
+          Upload PDF
         </button>
+
         <p
           style={{
             marginTop: 20,
@@ -254,6 +320,7 @@ export default function Page() {
               <strong>Size:</strong> {(file.size / 1024).toFixed(2)} KB
             </p>
           </div>
+
           {previewUrl && (
             <iframe
               src={previewUrl}
@@ -263,6 +330,7 @@ export default function Page() {
               title="PDF preview"
             />
           )}
+
           <button
             onClick={handleAnalyze}
             disabled={analyzing}
@@ -278,6 +346,7 @@ export default function Page() {
           >
             {analyzing ? "Analyzing..." : "Analyze"}
           </button>
+
           {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
         </section>
       )}
