@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, type ChartData } from "chart.js";
+import { buildRecommendations, type Recommendation } from "@/lib/recommendations/recommendationEngine";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -17,20 +18,7 @@ type Totals = {
   other: number;
 };
 
-type ScoreResult = {
-  score: number;
-  riskLevel: string;
-  totalSpent: number;
-  percentByCategory: Record<string, number>;
-  benchmark: Record<string, number>;
-  comparisons: {
-    category: string;
-    userPercent: number;
-    benchmarkPercent: number;
-    delta: number;
-    absDelta: number;
-  }[];
-};
+import type { ScoreResult } from "@/lib/scoring/scoreTypes";
 
 function centsToDollars(cents: number) {
   return (cents / 100).toFixed(2);
@@ -140,6 +128,11 @@ export default function AnalysisPage() {
     borderRadius: 12,
     padding: 18,
   };
+
+  const recommendations: Recommendation[] = useMemo(() => {
+    if (!scoreResult) return [];
+    return buildRecommendations(scoreResult, 3);
+  }, [scoreResult]);
 
   if (!loaded) {
     return (
@@ -258,6 +251,23 @@ export default function AnalysisPage() {
           </tbody>
         </table>
       </div>
+
+      {recommendations.length > 0 && (
+        <div style={{ marginTop: 18, ...cardStyle }}>
+          <h3 style={{ marginTop: 0 }}>Recommendations</h3>
+          <ol style={{ paddingLeft: 20, margin: 0 }}>
+            {recommendations.map((rec) => (
+              <li key={rec.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 600 }}>{rec.message}</div>
+                <div style={{ fontSize: 12, color: "#4b5563", marginTop: 2 }}>
+                  Kind: {rec.kind} • Priority: {rec.priority}
+                  {rec.category ? ` • Category: ${rec.category}` : ""}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div style={{ marginTop: 28 }}>
         <button style={buttonStyle} onClick={() => router.push("/dashboard")}>
