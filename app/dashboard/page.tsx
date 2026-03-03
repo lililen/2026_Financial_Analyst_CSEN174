@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { DEFAULT_BENCHMARK } from "@/lib/benchmarks/benchmarkProfile";
+import { calculateFinancialScore } from "@/lib/scoring/scoreCalculator";
+import type { Transaction } from "@/lib/scoring/scoreTypes";
+
 type Totals = {
   shopping: number; // cents
   entertainment: number;
   food: number;
-  others: number;
+  others: number; // (we'll also map this to "other" for the score)
 };
 
 function moneyToCents(amountStr: string) {
@@ -39,8 +43,8 @@ function categorizeLine(line: string): { category: keyof Totals; cents: number }
 async function extractPdfTextLines(file: File): Promise<string[]> {
   const pdfjs = await import("pdfjs-dist/build/pdf");
 
-
-  (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+  (pdfjs as any).GlobalWorkerOptions.workerSrc =
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
   const buf = await file.arrayBuffer();
   const pdf = await (pdfjs as any).getDocument({ data: buf }).promise;
@@ -108,21 +112,51 @@ export default function Page() {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error("Analysis timed out (worker/text extraction stuck)")),
-          8000
+          20000 // increased timeout a bit
         )
       );
 
       const lines = await Promise.race([extractPdfTextLines(file), timeout]);
 
+      // Category totals for pie chart (in cents)
       const totals: Totals = { shopping: 0, entertainment: 0, food: 0, others: 0 };
+
+      // Transactions for financial score (in dollars)
+      const userId = "demo-user";
+      const txns: Transaction[] = [];
 
       for (const line of lines) {
         const parsed = categorizeLine(line);
         if (!parsed) continue;
+
         totals[parsed.category] += parsed.cents;
+
+        // Map "others" -> "other" to match scoring benchmark keys
+        const scoreCategory =
+          parsed.category === "others" ? "other" : parsed.category;
+
+        txns.push({
+          userId,
+          type: "DEBIT",
+          category: scoreCategory,      // food/shopping/entertainment/other
+          amount: parsed.cents / 100,   // dollars
+          description: line.slice(0, 80),
+        });
       }
 
+      // Store totals for analysis pie chart page
       sessionStorage.setItem("categoryTotals", JSON.stringify(totals));
+
+      // Compute and store financial score result
+      const scoreResult = calculateFinancialScore(txns, DEFAULT_BENCHMARK, {
+        penaltyFactor: 80, // less punishing than 200
+        minScore: 0,
+        maxScore: 100,
+      });
+
+      sessionStorage.setItem("financialScoreResult", JSON.stringify(scoreResult));
+
+      // Navigate to results page
       router.push("/analysis");
     } catch (e: any) {
       setError(e?.message ?? "Failed to analyze PDF.");
@@ -244,9 +278,7 @@ export default function Page() {
           >
             {analyzing ? "Analyzing..." : "Analyze"}
           </button>
-          {error && (
-            <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>
-          )}
+          {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
         </section>
       )}
     </main>
