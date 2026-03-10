@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_BENCHMARK } from "@/lib/benchmarks/benchmarkProfile";
 import { calculateFinancialScore } from "@/lib/scoring/scoreCalculator";
 import type { Transaction } from "@/lib/scoring/scoreTypes";
+import { getCurrentUser } from "../../lib/auth";
 
 type Totals = {
   rent: number; // cents
@@ -141,6 +142,13 @@ export default function Page() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const activeUser = getCurrentUser();
+    if (!activeUser) {
+      router.replace("/login");
+    }
+  }, [router]);
 
   function openFilePicker() {
     fileInputRef.current?.click();
