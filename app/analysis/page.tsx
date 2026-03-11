@@ -1,3 +1,11 @@
+/*
+Analysis page for FinScore
+
+Client-side page. Loads the most recent category totals, financial score result, 
+and selected month label from sessionStorage. Displays a spending pie chart, category totals, benchmark comparison details, and personalized recommendations.
+
+*/
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
