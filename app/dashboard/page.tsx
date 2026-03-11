@@ -6,7 +6,18 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_BENCHMARK } from "@/lib/benchmarks/benchmarkProfile";
 import { calculateFinancialScore } from "@/lib/scoring/scoreCalculator";
 import type { Transaction } from "@/lib/scoring/scoreTypes";
-import { getCurrentUser } from "../../lib/auth";
+import { getCurrentUser, logoutUser } from "../../lib/auth";
+import {
+  getUserUploads,
+  hasUploadForMonth,
+  saveUserUpload,
+  type UploadRecord,
+} from "../../lib/uploads";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 type Totals = {
   rent: number; // cents
@@ -138,10 +149,19 @@ async function extractPdfTextLines(file: File): Promise<string[]> {
 export default function Page() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentUser = getCurrentUser();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [statementMonth, setStatementMonth] = useState<number | null>(null);
+  const [statementYear, setStatementYear] = useState(() => new Date().getFullYear());
+  const [showMonthModal, setShowMonthModal] = useState(false);
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [overwriteMonthLabel, setOverwriteMonthLabel] = useState("");
+  const [showPreviousUploads, setShowPreviousUploads] = useState(false);
+  const [previousUploads, setPreviousUploads] = useState<UploadRecord[]>([]);
 
   useEffect(() => {
     const activeUser = getCurrentUser();
@@ -172,10 +192,32 @@ export default function Page() {
     setFile(selected);
     setPreviewUrl(URL.createObjectURL(selected));
     setError(null);
+    setStatementMonth(null);
+    setShowMonthModal(true);
+  }
+
+  function openPreviousUploads() {
+    if (currentUser) {
+      setPreviousUploads(getUserUploads(currentUser));
+      setShowPreviousUploads(true);
+    }
+  }
+
+  function handleLogout() {
+    logoutUser();
+    router.push("/login");
+  }
+
+  function viewUpload(record: UploadRecord) {
+    sessionStorage.setItem("categoryTotals", JSON.stringify(record.categoryTotals));
+    sessionStorage.setItem("financialScoreResult", JSON.stringify(record.financialScoreResult));
+    sessionStorage.setItem("viewingMonthLabel", record.monthLabel);
+    setShowPreviousUploads(false);
+    router.push("/analysis");
   }
 
   async function handleAnalyze() {
-    if (!file) return;
+    if (!file || statementMonth === null || !currentUser) return;
 
     setAnalyzing(true);
     setError(null);
@@ -213,8 +255,8 @@ export default function Page() {
         txns.push({
           userId,
           type: "DEBIT",
-          category: parsed.category,   // rent/groceries/food/shopping/entertainment/other
-          amount: parsed.cents / 100,  // dollars
+          category: parsed.category,
+          amount: parsed.cents / 100,
           description: line.slice(0, 80),
         });
       }
@@ -229,6 +271,20 @@ export default function Page() {
 
       sessionStorage.setItem("financialScoreResult", JSON.stringify(scoreResult));
 
+      const monthLabel = `${MONTH_NAMES[statementMonth - 1]} ${statementYear}`;
+      saveUserUpload(
+        currentUser,
+        {
+          month: statementMonth,
+          year: statementYear,
+          monthLabel,
+          categoryTotals: totals,
+          financialScoreResult: scoreResult,
+        },
+        { replaceExisting: true }
+      );
+
+      sessionStorage.setItem("viewingMonthLabel", monthLabel);
       router.push("/analysis");
     } catch (e: any) {
       setError(e?.message ?? "Failed to analyze PDF.");
@@ -248,6 +304,31 @@ export default function Page() {
         alignItems: "center",
       }}
     >
+      <div
+        style={{
+          position: "absolute",
+          top: 24,
+          right: 24,
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            padding: "8px 16px",
+            fontSize: 14,
+            fontWeight: 500,
+            background: "transparent",
+            color: "#1a3d1e",
+            border: "1px solid #1a3d1e",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Log out
+        </button>
+      </div>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -307,6 +388,24 @@ export default function Page() {
         >
           Upload a bank statement here to view and evaluate your financial health
         </p>
+
+        <button
+          type="button"
+          onClick={openPreviousUploads}
+          style={{
+            marginTop: 24,
+            padding: "10px 18px",
+            fontSize: 14,
+            fontWeight: 500,
+            background: "transparent",
+            color: "#1a3d1e",
+            border: "1px solid #1a3d1e",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          View previous uploads
+        </button>
       </section>
 
       {file && (
@@ -341,22 +440,278 @@ export default function Page() {
 
           <button
             onClick={handleAnalyze}
-            disabled={analyzing}
+            disabled={analyzing || statementMonth === null}
             style={{
               padding: "12px 20px",
               fontSize: 16,
-              background: "#1a3d1e",
+              background: statementMonth === null ? "#9eb59f" : "#1a3d1e",
               color: "#fff",
               border: "none",
               borderRadius: 8,
-              cursor: analyzing ? "not-allowed" : "pointer",
+              cursor: analyzing || statementMonth === null ? "not-allowed" : "pointer",
             }}
           >
-            {analyzing ? "Analyzing..." : "Analyze"}
+            {analyzing ? "Analyzing..." : statementMonth === null ? "Select month first" : "Analyze"}
           </button>
 
           {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
         </section>
+      )}
+
+      {/* Month/Year modal */}
+      {showMonthModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+          onClick={() => setShowMonthModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#f4fbf5",
+              borderRadius: 12,
+              padding: 28,
+              maxWidth: 360,
+              width: "90%",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+              color: "#1a3d1e",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 16px", fontSize: "1.2rem" }}>What month does this statement correspond to?</h3>
+            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Month</label>
+                <select
+                  value={statementMonth ?? ""}
+                  onChange={(e) => setStatementMonth(e.target.value ? Number(e.target.value) : null)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #a0c6a3",
+                    fontSize: 14,
+                  }}
+                >
+                  <option value="">Select month</option>
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={name} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Year</label>
+                <select
+                  value={statementYear}
+                  onChange={(e) => setStatementYear(Number(e.target.value))}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #a0c6a3",
+                    fontSize: 14,
+                  }}
+                >
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (statementMonth === null) return;
+                const monthLabel = `${MONTH_NAMES[statementMonth - 1]} ${statementYear}`;
+                if (currentUser && hasUploadForMonth(currentUser, statementMonth, statementYear)) {
+                  setShowOverwriteModal(true);
+                  setOverwriteMonthLabel(monthLabel);
+                } else {
+                  setShowMonthModal(false);
+                }
+              }}
+              disabled={statementMonth === null}
+              style={{
+                padding: "10px 20px",
+                fontSize: 14,
+                background: statementMonth === null ? "#9eb59f" : "#1a3d1e",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                cursor: statementMonth === null ? "not-allowed" : "pointer",
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Overwrite confirmation modal */}
+      {showOverwriteModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+          }}
+          onClick={() => {}}
+        >
+          <div
+            style={{
+              backgroundColor: "#f4fbf5",
+              borderRadius: 12,
+              padding: 28,
+              maxWidth: 400,
+              width: "90%",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+              color: "#1a3d1e",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 12px", fontSize: "1.1rem" }}>
+              This month has already been analyzed
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: 14, lineHeight: 1.5 }}>
+              Would you like to overwrite the data for {overwriteMonthLabel} or choose another month?
+            </p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOverwriteModal(false);
+                  setShowMonthModal(false);
+                  setOverwriteMonthLabel("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  fontSize: 14,
+                  background: "#1a3d1e",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Overwrite
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOverwriteModal(false);
+                  setOverwriteMonthLabel("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  fontSize: 14,
+                  background: "transparent",
+                  color: "#1a3d1e",
+                  border: "1px solid #1a3d1e",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Choose another month
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Previous uploads modal */}
+      {showPreviousUploads && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+          onClick={() => setShowPreviousUploads(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#f4fbf5",
+              borderRadius: 12,
+              padding: 28,
+              maxWidth: 420,
+              width: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.15)",
+              color: "#1a3d1e",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 16px" }}>Your previous uploads</h3>
+            {previousUploads.length === 0 ? (
+              <p style={{ color: "#2d5a32", fontSize: 14 }}>No previous uploads yet.</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {previousUploads.map((rec) => {
+                  const total = (
+                    rec.categoryTotals.rent +
+                    rec.categoryTotals.groceries +
+                    rec.categoryTotals.food +
+                    rec.categoryTotals.shopping +
+                    rec.categoryTotals.entertainment +
+                    rec.categoryTotals.other
+                  ) / 100;
+                  return (
+                    <li
+                      key={rec.id}
+                      onClick={() => viewUpload(rec)}
+                      style={{
+                        padding: "12px 16px",
+                        marginBottom: 8,
+                        borderRadius: 8,
+                        border: "1px solid #a0c6a3",
+                        cursor: "pointer",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{rec.monthLabel}</span>
+                      <span style={{ fontSize: 14 }}>${total.toFixed(2)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPreviousUploads(false)}
+              style={{
+                marginTop: 16,
+                padding: "10px 20px",
+                fontSize: 14,
+                background: "#1a3d1e",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );

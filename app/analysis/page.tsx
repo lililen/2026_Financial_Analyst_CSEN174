@@ -38,6 +38,7 @@ export default function AnalysisPage() {
   const router = useRouter();
   const [totals, setTotals] = useState<Totals | null>(null);
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
+  const [viewingMonthLabel, setViewingMonthLabel] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -46,6 +47,9 @@ export default function AnalysisPage() {
 
     const rawScore = sessionStorage.getItem("financialScoreResult");
     if (rawScore) setScoreResult(JSON.parse(rawScore));
+
+    const monthLabel = sessionStorage.getItem("viewingMonthLabel");
+    if (monthLabel) setViewingMonthLabel(monthLabel);
 
     setLoaded(true);
   }, []);
@@ -158,14 +162,14 @@ export default function AnalysisPage() {
   return (
     <main style={{ ...mainStyle, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: TEXT_COLOR, marginBottom: 18 }}>
-        Analysis
+        {viewingMonthLabel ? `Analysis - ${viewingMonthLabel}` : "Analysis"}
       </h1>
 
       <h2 style={{ marginTop: 0 }}>Spending by Category</h2>
 
       <div style={{ marginBottom: 18 }}>
         <p style={{ margin: 0, fontSize: "0.95rem", opacity: 0.9 }}>
-          Total spending this month
+          {viewingMonthLabel ? `Total spending for ${viewingMonthLabel}` : "Total spending this month"}
         </p>
         <p style={{ margin: "4px 0 0", fontSize: "2.5rem", fontWeight: 800 }}>
           ${sumDollars.toFixed(2)}

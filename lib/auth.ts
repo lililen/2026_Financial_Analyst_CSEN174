@@ -1,3 +1,5 @@
+import { clearAllUploads } from "./uploads";
+
 export type StoredUser = {
   email: string;
   password: string;
@@ -42,9 +44,16 @@ export function getCurrentUser(): string | null {
   return window.localStorage.getItem(CURRENT_USER_KEY);
 }
 
+/** Logs out the current user without deleting their account or upload data. */
+export function logoutUser() {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(CURRENT_USER_KEY);
+}
+
 export function clearAuthData() {
   if (!isBrowser()) return;
   window.localStorage.removeItem(USERS_KEY);
   window.localStorage.removeItem(CURRENT_USER_KEY);
+  clearAllUploads();
 }
 
