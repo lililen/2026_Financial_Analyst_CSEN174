@@ -2,6 +2,10 @@
 
 A web app for analyzing personal finances by uploading PDF bank statements. It parses transactions, categorizes spending, computes a financial health score, and generates personalized recommendations.
 
+## Google Drive Files:
+
+https://drive.google.com/drive/folders/1WKsXEhIwqcDku60BhW0q7FX3M6OxysZ4?usp=sharing
+
 ## Features
 
 - **PDF Upload & Parsing** — upload any bank statement PDF; the app extracts and categorizes transactions automatically
